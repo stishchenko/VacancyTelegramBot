@@ -1,5 +1,8 @@
 package com.tish;
 
+import com.tish.dto.VacancyDto;
+import com.tish.service.VacancyService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -16,6 +19,10 @@ import java.util.HashMap;
 
 @Component
 public class VacanciesBot extends TelegramLongPollingBot {
+
+	@Autowired
+	private VacancyService vacancyService;
+	private final Map<Long, String> lastShownLevel = new HashMap<>();
 
 	public List<String> levels = List.of("Junior", "Middle", "Senior");
 	public Map<String, List<String>> levelMap = new HashMap<>();
@@ -43,20 +50,18 @@ public class VacanciesBot extends TelegramLongPollingBot {
 				if (callbackData.startsWith("show") && callbackData.endsWith("Vacancies")) {
 
 					switch (callbackData) {
-						case "showJuniorVacancies":
-							showLevelVacancies("Junior", update);
-							break;
-						case "showMiddleVacancies":
-							showLevelVacancies("Middle", update);
-							break;
-						case "showSeniorVacancies":
-							showLevelVacancies("Senior", update);
-							break;
+						case "showJuniorVacancies" -> showLevelVacancies("Junior", update);
+						case "showMiddleVacancies" -> showLevelVacancies("Middle", update);
+						case "showSeniorVacancies" -> showLevelVacancies("Senior", update);
 					}
 
 				} else if (callbackData.startsWith("vacancyId=")) {
 					String id = callbackData.split("=")[1];
 					showVacancyDescription(id, update);
+				} else if ("backToVacancies".equalsIgnoreCase(callbackData)) {
+					handleBackToVacanciesCommand(update);
+				} else if ("backToStart".equalsIgnoreCase(callbackData)) {
+					handleBackToStartCommand(update);
 				}
 				/*if ("showJuniorVacancies".equalsIgnoreCase(callbackData)) {
 					showJuniorVacancies(update);
@@ -71,35 +76,85 @@ public class VacanciesBot extends TelegramLongPollingBot {
 		}
 	}
 
+	private void handleBackToStartCommand(Update update) throws TelegramApiException {
+		SendMessage sendMessage = new SendMessage();
+		sendMessage.setText("Choose title:");
+		sendMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
+		sendMessage.setReplyMarkup(getStartMenu());
+		execute(sendMessage);
+	}
+
+	private void handleBackToVacanciesCommand(Update update) throws TelegramApiException {
+		Long chartId = update.getCallbackQuery().getMessage().getChatId();
+		String level = lastShownLevel.get(chartId);
+		showLevelVacancies(level, update);
+	}
+
 	private void showVacancyDescription(String id, Update update) throws TelegramApiException {
 		SendMessage sendMessage = new SendMessage();
 		sendMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
-		sendMessage.setText("Vacancy description for vacancy with id = " + id);
+		if (id.equals("1") || id.equals("2")) {
+			String description = vacancyService.get(id).getShortDescription();
+			sendMessage.setText(description);
+		} else {
+			sendMessage.setText("Vacancy description for vacancy with id = " + id);
+		}
+		sendMessage.setReplyMarkup(getBackToVacanciesMenu());
 		execute(sendMessage);
+	}
+
+	private ReplyKeyboard getBackToVacanciesMenu() {
+		List<InlineKeyboardButton> raw = new ArrayList<>();
+
+		InlineKeyboardButton backToVacanciesButton = new InlineKeyboardButton();
+		backToVacanciesButton.setText("Back to vacancies");
+		backToVacanciesButton.setCallbackData("backToVacancies");
+		raw.add(backToVacanciesButton);
+
+		InlineKeyboardButton backToStartButton = new InlineKeyboardButton();
+		backToStartButton.setText("Back to start menu");
+		backToStartButton.setCallbackData("backToStart");
+		raw.add(backToStartButton);
+
+		InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+		keyboard.setKeyboard(List.of(raw));
+		return keyboard;
 	}
 
 	private void showLevelVacancies(String level, Update update) throws TelegramApiException {
 		SendMessage sendMessage = new SendMessage();
 		sendMessage.setText("Please choose vacancy:");
-		sendMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
+		Long chatId = update.getCallbackQuery().getMessage().getChatId();
+		sendMessage.setChatId(chatId);
 		//sendMessage.setReplyMarkup(getJuniorVacanciesMenu());
 		sendMessage.setReplyMarkup(getLevelVacanciesMenu(level));
 		execute(sendMessage);
+
+		lastShownLevel.put(chatId, level);
 	}
 
 	private ReplyKeyboard getLevelVacanciesMenu(String level) {
 		List<InlineKeyboardButton> raw = new ArrayList<>();
 
-		InlineKeyboardButton mateVacancy = new InlineKeyboardButton();
-		mateVacancy.setText(level + " Java developer at MA");
-		mateVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(0));
-		raw.add(mateVacancy);
+		if (level.equalsIgnoreCase("junior")) {
+			List<VacancyDto> vacancies = vacancyService.getJuniorVacancies();
+			for (VacancyDto vacancy : vacancies) {
+				InlineKeyboardButton vacancyButton = new InlineKeyboardButton();
+				vacancyButton.setText(vacancy.getTitle());
+				vacancyButton.setCallbackData("vacancyId=" + vacancy.getId());
+				raw.add(vacancyButton);
+			}
+		} else {
+			InlineKeyboardButton mateVacancy = new InlineKeyboardButton();
+			mateVacancy.setText(level + " Java developer at MA");
+			mateVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(0));
+			raw.add(mateVacancy);
 
-		InlineKeyboardButton googleVacancy = new InlineKeyboardButton();
-		googleVacancy.setText(level + " Dev at Google");
-		googleVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(1));
-		raw.add(googleVacancy);
-
+			InlineKeyboardButton googleVacancy = new InlineKeyboardButton();
+			googleVacancy.setText(level + " Dev at Google");
+			googleVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(1));
+			raw.add(googleVacancy);
+		}
 		InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
 		keyboard.setKeyboard(List.of(raw));
 
