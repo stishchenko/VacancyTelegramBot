@@ -93,12 +93,20 @@ public class VacanciesBot extends TelegramLongPollingBot {
 	private void showVacancyDescription(String id, Update update) throws TelegramApiException {
 		SendMessage sendMessage = new SendMessage();
 		sendMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
-		if (id.equals("1") || id.equals("2")) {
+		VacancyDto vacancy = vacancyService.get(id);
+		StringBuilder text = new StringBuilder("Title: ");
+		text.append(vacancy.getTitle()).append("\nCompany: ").append(vacancy.getCompany())
+				.append("\nShort Description: ").append(vacancy.getShortDescription())
+				.append("\nLong Description: ").append(vacancy.getLongDescription())
+				.append("\nSalary: ").append(vacancy.getSalary())
+				.append("\nLink: Click here to get more information: ").append(vacancy.getLink());
+		sendMessage.setText(text.toString());
+		/*if (id.equals("1") || id.equals("2")) {
 			String description = vacancyService.get(id).getShortDescription();
 			sendMessage.setText(description);
 		} else {
 			sendMessage.setText("Vacancy description for vacancy with id = " + id);
-		}
+		}*/
 		sendMessage.setReplyMarkup(getBackToVacanciesMenu());
 		execute(sendMessage);
 	}
@@ -136,7 +144,15 @@ public class VacanciesBot extends TelegramLongPollingBot {
 	private ReplyKeyboard getLevelVacanciesMenu(String level) {
 		List<InlineKeyboardButton> raw = new ArrayList<>();
 
-		if (level.equalsIgnoreCase("junior")) {
+		List<VacancyDto> vacancies = vacancyService.getLevelVacancies(level);
+		for (VacancyDto vacancy : vacancies) {
+			InlineKeyboardButton vacancyButton = new InlineKeyboardButton();
+			vacancyButton.setText(vacancy.getTitle());
+			vacancyButton.setCallbackData("vacancyId=" + vacancy.getId());
+			raw.add(vacancyButton);
+		}
+
+		/*if (level.equalsIgnoreCase("junior")) {
 			List<VacancyDto> vacancies = vacancyService.getJuniorVacancies();
 			for (VacancyDto vacancy : vacancies) {
 				InlineKeyboardButton vacancyButton = new InlineKeyboardButton();
@@ -154,7 +170,7 @@ public class VacanciesBot extends TelegramLongPollingBot {
 			googleVacancy.setText(level + " Dev at Google");
 			googleVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(1));
 			raw.add(googleVacancy);
-		}
+		}*/
 		InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
 		keyboard.setKeyboard(List.of(raw));
 
