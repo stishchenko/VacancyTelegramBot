@@ -5,6 +5,7 @@ import com.tish.service.VacancyService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -94,21 +95,48 @@ public class VacanciesBot extends TelegramLongPollingBot {
 		SendMessage sendMessage = new SendMessage();
 		sendMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
 		VacancyDto vacancy = vacancyService.get(id);
-		StringBuilder text = new StringBuilder("Title: ");
+		/*StringBuilder text = new StringBuilder("Title: ");
 		text.append(vacancy.getTitle()).append("\nCompany: ").append(vacancy.getCompany())
 				.append("\nShort Description: ").append(vacancy.getShortDescription())
 				.append("\nLong Description: ").append(vacancy.getLongDescription())
 				.append("\nSalary: ").append(vacancy.getSalary())
-				.append("\nLink: Click here to get more information: ").append(vacancy.getLink());
-		sendMessage.setText(text.toString());
-		/*if (id.equals("1") || id.equals("2")) {
-			String description = vacancyService.get(id).getShortDescription();
-			sendMessage.setText(description);
-		} else {
-			sendMessage.setText("Vacancy description for vacancy with id = " + id);
-		}*/
+				.append("\nLink: Click here to get more information: ").append(vacancy.getLink());*/
+		String vacancyInfo = """
+				*Title:* %s
+				*Company:* %s
+				*Short Description:* %s
+				*Long Description:* %s
+				*Salary:* %s
+				*Link:* [%s](%s)
+				""".formatted(
+				escapeMarkdownReservedChars(vacancy.getTitle()),
+				escapeMarkdownReservedChars(vacancy.getCompany()),
+				escapeMarkdownReservedChars(vacancy.getShortDescription()),
+				escapeMarkdownReservedChars(vacancy.getLongDescription()),
+				vacancy.getSalary().isBlank() || vacancy.getSalary().equals("-") ? "Not specified" : escapeMarkdownReservedChars(vacancy.getSalary()),
+				"Click here to get details",
+				escapeMarkdownReservedChars(vacancy.getLink()));
+		sendMessage.setText(vacancyInfo);
+		sendMessage.setParseMode(ParseMode.MARKDOWNV2);
 		sendMessage.setReplyMarkup(getBackToVacanciesMenu());
 		execute(sendMessage);
+	}
+
+	private String escapeMarkdownReservedChars(String text) {
+		return text.replace("-", "\\-")
+				.replace("_", "\\_")
+				.replace("*", "\\*")
+				.replace("[", "\\[")
+				.replace("]", "\\]")
+				.replace("(", "\\(")
+				.replace(")", "\\)")
+				.replace("~", "\\~")
+				.replace("`", "\\`")
+				.replace(">", "\\>")
+				.replace("#", "\\#")
+				.replace("+", "\\+")
+				.replace(".", "\\.")
+				.replace("!", "\\!");
 	}
 
 	private ReplyKeyboard getBackToVacanciesMenu() {
@@ -134,7 +162,6 @@ public class VacanciesBot extends TelegramLongPollingBot {
 		sendMessage.setText("Please choose vacancy:");
 		Long chatId = update.getCallbackQuery().getMessage().getChatId();
 		sendMessage.setChatId(chatId);
-		//sendMessage.setReplyMarkup(getJuniorVacanciesMenu());
 		sendMessage.setReplyMarkup(getLevelVacanciesMenu(level));
 		execute(sendMessage);
 
@@ -152,25 +179,6 @@ public class VacanciesBot extends TelegramLongPollingBot {
 			raw.add(vacancyButton);
 		}
 
-		/*if (level.equalsIgnoreCase("junior")) {
-			List<VacancyDto> vacancies = vacancyService.getJuniorVacancies();
-			for (VacancyDto vacancy : vacancies) {
-				InlineKeyboardButton vacancyButton = new InlineKeyboardButton();
-				vacancyButton.setText(vacancy.getTitle());
-				vacancyButton.setCallbackData("vacancyId=" + vacancy.getId());
-				raw.add(vacancyButton);
-			}
-		} else {
-			InlineKeyboardButton mateVacancy = new InlineKeyboardButton();
-			mateVacancy.setText(level + " Java developer at MA");
-			mateVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(0));
-			raw.add(mateVacancy);
-
-			InlineKeyboardButton googleVacancy = new InlineKeyboardButton();
-			googleVacancy.setText(level + " Dev at Google");
-			googleVacancy.setCallbackData("vacancyId=" + levelMap.get(level).get(1));
-			raw.add(googleVacancy);
-		}*/
 		InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
 		keyboard.setKeyboard(List.of(raw));
 
