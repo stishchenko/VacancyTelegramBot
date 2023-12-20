@@ -2,8 +2,14 @@ package com.tish;
 
 import com.tish.dto.VacancyDto;
 import com.tish.service.VacancyService;
+/*import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;*/
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -12,7 +18,9 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -24,6 +32,8 @@ public class VacanciesBot extends TelegramLongPollingBot {
 	@Autowired
 	private VacancyService vacancyService;
 	private final Map<Long, String> lastShownLevel = new HashMap<>();
+	private String OPENAI_API_KEY = "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";
+	private WebClient webClient = WebClient.create("https://api.openai.com/v1/chat/completions");
 
 	public List<String> levels = List.of("Junior", "Middle", "Senior");
 	public Map<String, List<String>> levelMap = new HashMap<>();
@@ -63,7 +73,9 @@ public class VacanciesBot extends TelegramLongPollingBot {
 					handleBackToVacanciesCommand(update);
 				} else if ("backToStart".equalsIgnoreCase(callbackData)) {
 					handleBackToStartCommand(update);
-				}
+				} /*else if ("getCoverLetter".equalsIgnoreCase(callbackData)) {
+					handleGetCoverLetterCommand(update);
+				}*/
 				/*if ("showJuniorVacancies".equalsIgnoreCase(callbackData)) {
 					showJuniorVacancies(update);
 				} else if (callbackData.startsWith("vacancyId=")) {
@@ -75,6 +87,29 @@ public class VacanciesBot extends TelegramLongPollingBot {
 		} catch (TelegramApiException e) {
 			throw new RuntimeException("Can't send message to user!", e);
 		}
+	}
+
+	private void handleGetCoverLetterCommand(Update update) throws TelegramApiException {
+		SendMessage sendMessage = new SendMessage();
+		sendMessage.setChatId(update.getCallbackQuery().getMessage().getChatId());
+		/*String text = update.getCallbackQuery().getMessage().getText();
+		sendMessage.setText("Your cover letter:\n" + generateCoverLetter(text));*/
+		execute(sendMessage);
+	}
+
+	private String generateCoverLetter(String vacancyDescription) {
+		String coverLetter = "";
+
+		Mono<String> response = webClient.post()
+				.header("Content-Type", "application/json")
+				.header("Authorization", "Bearer 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")
+				.bodyValue("{\"model\": \"gpt-3.5-turbo\", \"messages\": [{\"role\": \"user\", \"content\": \"Write a cover letter for vacancy. I am a Java developer with 6 months of experience, I know Java Core well, I know how to work with a database and create web applications. I have good knowledge of Hibernate and String Boot frameworks. Make cover letter not informal and without contact data and address. Vacancy: " + vacancyDescription + "\"}]}")
+				.retrieve()
+				.bodyToMono(String.class);
+
+		coverLetter = response.block();
+
+		return coverLetter;
 	}
 
 	private void handleBackToStartCommand(Update update) throws TelegramApiException {
@@ -151,6 +186,12 @@ public class VacanciesBot extends TelegramLongPollingBot {
 		backToStartButton.setText("Back to start menu");
 		backToStartButton.setCallbackData("backToStart");
 		raw.add(backToStartButton);
+
+		InlineKeyboardButton getChartGptButton = new InlineKeyboardButton();
+		getChartGptButton.setText("Get cover letter");
+		getChartGptButton.setUrl("https://chat.openai.com/");
+		//getChartGptButton.setCallbackData("getCoverLetter");
+		raw.add(getChartGptButton);
 
 		InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
 		keyboard.setKeyboard(List.of(raw));
